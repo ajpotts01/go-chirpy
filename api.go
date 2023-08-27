@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 
 type apiConfig struct {
@@ -34,6 +35,23 @@ func (cfg *apiConfig) hits(w http.ResponseWriter, r *http.Request) {
 		`, cfg.serverHits)))
 }
 
+func profanityFilter(body string) string {
+	profanity := []string{
+		"kerfuffle",
+		"sharbert",
+		"fornax",
+	}
+
+	censor := "****"
+	result := body
+
+	for _, word := range profanity {
+		result = strings.ReplaceAll(result, word, censor)
+	}
+
+	return result
+}
+
 func validateChirp(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Body string `json:"body"`
@@ -58,6 +76,8 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+
+	params.Body = profanityFilter(params.Body)
 
 	log.Printf("Received chirp with length of %v\n", len(params.Body))
 
