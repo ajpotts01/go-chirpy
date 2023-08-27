@@ -23,7 +23,9 @@ func main() {
 
 	apiRouter := chi.NewRouter()
 	apiRouter.Get(healthEndpoint, ready)
-	apiRouter.Get(metricsEndpoint, cfg.hits)
+
+	adminRouter := chi.NewRouter()
+	adminRouter.Get(metricsEndpoint, cfg.hits)
 
 	// Done a bit differently to the boot.dev example
 	// They just use router in the same way as mux
@@ -33,6 +35,7 @@ func main() {
 	appRouter.Handle("/app", fsHandler)
 	appRouter.Handle("/app/*", fsHandler)
 	appRouter.Mount("/api", apiRouter)
+	appRouter.Mount("/admin", adminRouter)
 
 	// Can just do http.ListenAndServe but it may be useful to keep the server object around
 	server := &http.Server{
