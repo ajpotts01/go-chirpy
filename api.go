@@ -39,9 +39,12 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 		Body string `json:"body"`
 	}
 
-	type result struct {
-		Err   string `json:"error"`
-		Valid bool   `json:"valid"`
+	type successResponse struct {
+		Valid bool `json:"valid"`
+	}
+
+	type errorResponse struct {
+		Err string `json:"error"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -59,9 +62,8 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received chirp with length of %v\n", len(params.Body))
 
 	if len(params.Body) > 140 {
-		response := result{
-			Err:   "Chirp is too long",
-			Valid: false,
+		response := errorResponse{
+			Err: "Chirp is too long",
 		}
 
 		data, err := json.Marshal(response)
@@ -79,7 +81,7 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := result{
+	response := successResponse{
 		Valid: true,
 	}
 
