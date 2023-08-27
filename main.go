@@ -5,37 +5,24 @@ import (
 	"net/http"
 )
 
-func cors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "*")
-
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func ready(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
-}
-
 func main() {
 	const port = "8080"
 	const dirRoot = "."
 	const healthEndpoint = "/healthz"
-	const appEndpoint = "/app/"
+	const metricsEndpoint = "/metrics"
+	const appEndpoint = "/app"
+
+	cfg := apiConfig{
+		serverHits: 0,
+	}
 
 	mux := http.NewServeMux()
-	corsHandler := cors(mux)
 
+	mux.Handle("/app", cfg.metrics(http.StripPrefix("/app", http.FileServer(http.Dir(dirRoot)))))
 	mux.HandleFunc(healthEndpoint, ready)
-	mux.Handle(appEndpoint, http.StripPrefix(appEndpoint, http.FileServer(http.Dir(dirRoot))))
+	mux.HandleFunc(metricsEndpoint, cfg.hits)
+
+	corsHandler := cors(mux)
 
 	// Can just do http.ListenAndServe but it may be useful to keep the server object around
 	server := &http.Server{
