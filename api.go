@@ -36,19 +36,23 @@ func (cfg *apiConfig) hits(w http.ResponseWriter, r *http.Request) {
 }
 
 func profanityFilter(body string) string {
-	profanity := []string{
-		"kerfuffle",
-		"sharbert",
-		"fornax",
+	profanity := map[string]struct{}{
+		"kerfuffle": {},
+		"sharbert":  {},
+		"fornax":    {},
 	}
 
 	censor := "****"
-	result := body
 
-	for _, word := range profanity {
-		result = strings.ReplaceAll(result, word, censor)
+	words := strings.Split(body, " ")
+
+	for idx, word := range words {
+		if _, ok := profanity[strings.ToLower(word)]; ok {
+			words[idx] = censor
+		}
 	}
 
+	result := strings.Join(words, " ")
 	return result
 }
 
@@ -58,7 +62,7 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type successResponse struct {
-		Valid bool `json:"valid"`
+		CleanedBody string `json:"cleaned_body"`
 	}
 
 	type errorResponse struct {
@@ -77,7 +81,7 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	params.Body = profanityFilter(params.Body)
+	cleanedBody := profanityFilter(params.Body)
 
 	log.Printf("Received chirp with length of %v\n", len(params.Body))
 
@@ -102,7 +106,7 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := successResponse{
-		Valid: true,
+		CleanedBody: cleanedBody,
 	}
 
 	data, err := json.Marshal(response)
