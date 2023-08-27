@@ -22,6 +22,7 @@ func cors(next http.Handler) http.Handler {
 func main() {
 	const port = "8080"
 	mux := http.NewServeMux()
+	mux.Handle("/", http.FileServer(http.Dir(".")))
 	corsHandler := cors(mux)
 
 	// Can just do http.ListenAndServe but it may be useful to keep the server object around
