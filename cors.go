@@ -1,6 +1,9 @@
 package main
 
-import "net/http"
+import (
+	"log"
+	"net/http"
+)
 
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -9,6 +12,7 @@ func cors(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Headers", "*")
 
 		if r.Method == "OPTIONS" {
+			log.Printf("Writing 200")
 			w.WriteHeader(http.StatusOK)
 			return
 		}
