@@ -82,22 +82,7 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received chirp with length of %v\n", len(params.Body))
 
 	if len(params.Body) > 140 {
-		response := errorResponse{
-			Err: "Chirp is too long",
-		}
-
-		data, err := json.Marshal(response)
-
-		if err != nil {
-			log.Println(err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		// Header needs to be done before data is written
-		// or the header is automatically 200
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write(data)
+		errorResponse(w, http.StatusBadRequest, "Chrip is too long")
 		return
 	}
 
@@ -105,16 +90,7 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 		CleanedBody: cleanedBody,
 	}
 
-	data, err := json.Marshal(response)
-
-	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write(data)
+	validResponse(w, http.StatusOK, response)
 	return
 }
 
