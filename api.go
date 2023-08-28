@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 
 type apiConfig struct {
@@ -34,14 +35,34 @@ func (cfg *apiConfig) hits(w http.ResponseWriter, r *http.Request) {
 		`, cfg.serverHits)))
 }
 
+func profanityFilter(body string) string {
+	profanity := map[string]struct{}{
+		"kerfuffle": {},
+		"sharbert":  {},
+		"fornax":    {},
+	}
+
+	censor := "****"
+
+	words := strings.Split(body, " ")
+
+	for idx, word := range words {
+		if _, ok := profanity[strings.ToLower(word)]; ok {
+			words[idx] = censor
+		}
+	}
+
+	result := strings.Join(words, " ")
+	return result
+}
+
 func validateChirp(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Body string `json:"body"`
 	}
 
-	type result struct {
-		Err   string `json:"error"`
-		Valid bool   `json:"valid"`
+	type successResponse struct {
+		CleanedBody string `json:"cleaned_body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -56,42 +77,46 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
+	cleanedBody := profanityFilter(params.Body)
+
 	log.Printf("Received chirp with length of %v\n", len(params.Body))
 
 	if len(params.Body) > 140 {
-		response := result{
-			Err:   "Chirp is too long",
-			Valid: false,
-		}
-
-		data, err := json.Marshal(response)
-
-		if err != nil {
-			log.Println(err.Error())
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		// Header needs to be done before data is written
-		// or the header is automatically 200
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write(data)
+		errorResponse(w, http.StatusBadRequest, "Chrip is too long")
 		return
 	}
 
-	response := result{
-		Valid: true,
+	response := successResponse{
+		CleanedBody: cleanedBody,
 	}
 
-	data, err := json.Marshal(response)
+	validResponse(w, http.StatusOK, response)
+	return
+}
+
+func validResponse(w http.ResponseWriter, code int, obj interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+
+	resp, err := json.Marshal(obj)
 
 	if err != nil {
-		log.Println(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("Error marshalling JSON: %s", err)
+		w.WriteHeader(500)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write(data)
-	return
+	w.WriteHeader(code)
+	w.Write(resp)
+}
+
+func errorResponse(w http.ResponseWriter, code int, errorMsg string) {
+	type errorResponse struct {
+		Err string `json:"error"`
+	}
+
+	errorObj := errorResponse{
+		Err: errorMsg,
+	}
+
+	validResponse(w, code, errorObj)
 }
