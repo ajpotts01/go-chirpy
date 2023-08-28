@@ -13,7 +13,7 @@ func main() {
 	const healthEndpoint = "/healthz"
 	const metricsEndpoint = "/metrics"
 	const appEndpoint = "/app"
-	const validateEndpoint = "/validate_chirp"
+	const chirpEndpoint = "/chirps"
 
 	cfg := apiConfig{
 		serverHits: 0,
@@ -24,7 +24,8 @@ func main() {
 
 	apiRouter := chi.NewRouter()
 	apiRouter.Get(healthEndpoint, ready)
-	apiRouter.Post(validateEndpoint, validateChirp)
+	apiRouter.Get(chirpEndpoint, readChirp)
+	apiRouter.Post(chirpEndpoint, createChirp)
 
 	adminRouter := chi.NewRouter()
 	adminRouter.Get(metricsEndpoint, cfg.hits)
