@@ -88,30 +88,32 @@ func (db *Database) loadDatabase() (ChirpData, error) {
 	var rawData []byte
 	var chirpData ChirpData
 
-	db.mux.Lock()
-	defer db.mux.Unlock()
+	db.mux.RLock()
+	defer db.mux.RUnlock()
 	fmt.Printf("Opening %v...\n", db.path)
-	f, err := os.OpenFile(db.path, os.O_RDWR, 0666) // 0666 = read/write?
+	//	f, err := os.OpenFile(db.path, os.O_RDWR, 0666) // 0666 = read/write?
 
-	defer f.Close()
+	//	defer f.Close()
+
+	rawData, err := os.ReadFile(db.path)
 
 	if err != nil {
 		fmt.Printf("Error opening database file: %v\n", err.Error())
 		return chirpData, err
 	}
 
-	bytesRead, err := f.Read(rawData)
-
 	if err != nil {
 		fmt.Printf("Error loading data: %v\n", err)
 		return chirpData, err
 	}
 
-	fmt.Printf("%v bytes read\n", bytesRead)
+	fmt.Printf("%v bytes read\n", len(rawData))
 
-	if bytesRead > 0 {
+	if len(rawData) > 0 {
 		err = json.Unmarshal(rawData, &chirpData)
 		if err != nil {
+			fmt.Println("There was an error unmarshalling JSON data.")
+			fmt.Printf("Data: %v\n", rawData)
 			return chirpData, err
 		}
 	}
