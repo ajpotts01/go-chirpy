@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -63,7 +64,28 @@ func (db *Database) CreateChirp(body string) (Chirp, error) {
 	return chirp, nil
 }
 
-func (db *Database) ReadChirp() ([]Chirp, error) {
+func (db *Database) ReadSingleChirp(id int) (Chirp, error) {
+	var chirp Chirp
+	chirpData, err := db.loadDatabase()
+
+	if err != nil {
+		fmt.Printf("Error reading chirps: %v\n", err.Error())
+		return chirp, err
+	}
+
+	fmt.Printf("Chirps: %v\n", chirpData)
+
+	for _, val := range chirpData.Chirps {
+		fmt.Printf("Loaded chirp: %v\n", val)
+		if val.Id == id {
+			return val, nil
+		}
+	}
+
+	return chirp, errors.New("not found")
+}
+
+func (db *Database) ReadChirps() ([]Chirp, error) {
 	var chirps []Chirp
 	chirpData, err := db.loadDatabase()
 

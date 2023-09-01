@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type Chirp struct {
@@ -72,17 +75,52 @@ func readChirp(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("Database connection open...")
 
-	chirps, err := database.ReadChirp()
+	providedId := chi.URLParam(r, "id")
 
-	fmt.Printf("Chirps: %v\n", chirps)
+	id, err := strconv.Atoi(providedId)
 
 	if err != nil {
-		log.Printf("Error creating database connection: %v", err.Error())
-		errorResponse(w, http.StatusInternalServerError, err.Error())
+		id = 0
+	}
+
+	if id == 0 {
+		chirps, err := database.ReadChirps()
+
+		if err != nil {
+			log.Printf("Error creating database connection: %v", err.Error())
+			errorResponse(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		fmt.Printf("Chirps: %v\n", chirps)
+
+		if err != nil {
+			log.Printf("Error creating database connection: %v", err.Error())
+			errorResponse(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		validResponse(w, http.StatusOK, chirps)
+		return
+
+	} else {
+		chirp, err := database.ReadSingleChirp(id)
+
+		if err != nil {
+			if err.Error() == "not found" {
+				errorResponse(w, http.StatusNotFound, err.Error())
+				return
+			}
+
+			log.Printf("Error creating database connection: %v", err.Error())
+			errorResponse(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		validResponse(w, http.StatusOK, chirp)
 		return
 	}
 
-	validResponse(w, http.StatusOK, chirps)
 	return
 }
 
