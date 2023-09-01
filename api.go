@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+type Chirp struct {
+	Body string `json:"body"`
+	Id   int    `json:"id"`
+}
+
 type apiConfig struct {
 	serverHits int
 }
@@ -56,13 +61,34 @@ func profanityFilter(body string) string {
 	return result
 }
 
-func validateChirp(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Body string `json:"body"`
+func readChirp(w http.ResponseWriter, r *http.Request) {
+	database, err := NewDatabase("database.json")
+
+	if err != nil {
+		log.Printf("Error creating database connection: %v", err.Error())
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
-	type successResponse struct {
-		CleanedBody string `json:"cleaned_body"`
+	fmt.Println("Database connection open...")
+
+	chirps, err := database.ReadChirp()
+
+	fmt.Printf("Chirps: %v\n", chirps)
+
+	if err != nil {
+		log.Printf("Error creating database connection: %v", err.Error())
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	validResponse(w, http.StatusOK, chirps)
+	return
+}
+
+func createChirp(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Body string `json:"body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -81,16 +107,28 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Received chirp with length of %v\n", len(params.Body))
 
-	if len(params.Body) > 140 {
-		errorResponse(w, http.StatusBadRequest, "Chrip is too long")
+	if len(cleanedBody) > 140 {
+		errorResponse(w, http.StatusBadRequest, "Chirp is too long")
 		return
 	}
 
-	response := successResponse{
-		CleanedBody: cleanedBody,
+	database, err := NewDatabase("database.json")
+
+	if err != nil {
+		log.Printf("Error creating database connection: %v", err.Error())
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
-	validResponse(w, http.StatusOK, response)
+	newChirp, err := database.CreateChirp(cleanedBody)
+
+	if err != nil {
+		log.Printf("Error creating new Chirp: %v", err.Error())
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	validResponse(w, http.StatusCreated, newChirp)
 	return
 }
 
