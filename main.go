@@ -16,6 +16,7 @@ func main() {
 	const chirpEndpoint = "/chirps"
 	const singleChirpEndpoint = "/chirps/{id}"
 	const userEndpoint = "/users"
+	const loginEndpoint = "/login"
 
 	cfg := apiConfig{
 		serverHits: 0,
@@ -30,7 +31,8 @@ func main() {
 	apiRouter.Get(singleChirpEndpoint, readChirp)
 	apiRouter.Post(chirpEndpoint, createChirp)
 	apiRouter.Post(userEndpoint, createUser)
-	//apiRouter.Get(userEndpoint, readUser)
+	apiRouter.Get(userEndpoint, readUser)
+	apiRouter.Get(loginEndpoint, authUser)
 
 	adminRouter := chi.NewRouter()
 	adminRouter.Get(metricsEndpoint, cfg.hits)
