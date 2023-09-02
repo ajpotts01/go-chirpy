@@ -16,6 +16,7 @@ import (
 
 type apiConfig struct {
 	serverHits int
+	jwtSecret  string
 }
 
 func (cfg *apiConfig) metrics(next http.Handler) http.Handler {

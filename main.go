@@ -3,8 +3,10 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -18,8 +20,11 @@ func main() {
 	const userEndpoint = "/users"
 	const loginEndpoint = "/login"
 
+	godotenv.Load()
+
 	cfg := apiConfig{
 		serverHits: 0,
+		jwtSecret:  os.Getenv("JWT_SECRET"),
 	}
 
 	appRouter := chi.NewRouter()
