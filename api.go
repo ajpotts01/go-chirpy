@@ -11,6 +11,7 @@ import (
 
 	"github.com/ajpotts01/go-chirpy/internal/database"
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type apiConfig struct {
@@ -193,6 +194,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	newUser.Password = nil
 	validResponse(w, http.StatusCreated, newUser)
 	return
 }
@@ -232,6 +234,50 @@ func readUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	validResponse(w, http.StatusOK, user)
+	return
+}
+
+func authUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	database, err := database.NewDatabase("database.json")
+
+	if err != nil {
+		log.Printf("Error creating database connection: %v", err.Error())
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	fmt.Println("Database connection open...")
+
+	authUser, err := database.AuthUser(params.Email, params.Password)
+
+	if err != nil {
+		if err == bcrypt.ErrMismatchedHashAndPassword {
+			errorResponse(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		errorResponse(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	validResponse(w, http.StatusOK, authUser)
 	return
 }
 

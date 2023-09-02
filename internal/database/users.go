@@ -8,7 +8,7 @@ import (
 )
 
 type User struct {
-	Password []byte `json:"password"`
+	Password []byte `json:"password,omitempty"`
 	Email    string `json:"email"`
 	Id       int    `json:"id"`
 }
@@ -70,4 +70,26 @@ func (db *Database) ReadUser(id int) (User, error) {
 	}
 
 	return user, nil
+}
+
+func (db *Database) AuthUser(email string, password string) (User, error) {
+	database, err := db.loadDatabase()
+
+	if err != nil {
+		return User{}, err
+	}
+
+	for _, user := range database.Users {
+		if user.Email == email {
+			err := bcrypt.CompareHashAndPassword(user.Password, []byte(password))
+			if err != nil {
+				return User{}, bcrypt.ErrMismatchedHashAndPassword
+			}
+
+			user.Password = nil
+			return user, nil
+		}
+	}
+
+	return User{}, os.ErrNotExist
 }
