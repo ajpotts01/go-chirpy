@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,11 @@ import (
 type Chirp struct {
 	Body string `json:"body"`
 	Id   int    `json:"id"`
+}
+
+type User struct {
+	Email string `json:"email"`
+	Id    int    `json:"id"`
 }
 
 type apiConfig struct {
@@ -94,12 +100,6 @@ func readChirp(w http.ResponseWriter, r *http.Request) {
 
 		fmt.Printf("Chirps: %v\n", chirps)
 
-		if err != nil {
-			log.Printf("Error creating database connection: %v", err.Error())
-			errorResponse(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
 		validResponse(w, http.StatusOK, chirps)
 		return
 
@@ -107,7 +107,7 @@ func readChirp(w http.ResponseWriter, r *http.Request) {
 		chirp, err := database.ReadSingleChirp(id)
 
 		if err != nil {
-			if err.Error() == "not found" {
+			if err == os.ErrNotExist {
 				errorResponse(w, http.StatusNotFound, err.Error())
 				return
 			}
@@ -120,8 +120,6 @@ func readChirp(w http.ResponseWriter, r *http.Request) {
 		validResponse(w, http.StatusOK, chirp)
 		return
 	}
-
-	return
 }
 
 func createChirp(w http.ResponseWriter, r *http.Request) {
@@ -167,6 +165,43 @@ func createChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	validResponse(w, http.StatusCreated, newChirp)
+	return
+}
+
+func createUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	database, err := NewDatabase("database.json")
+
+	if err != nil {
+		log.Printf("Error creating database connection: %v", err.Error())
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	newUser, err := database.CreateUser(params.Email)
+
+	if err != nil {
+		log.Printf("Error creating new User: %v", err.Error())
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	validResponse(w, http.StatusCreated, newUser)
 	return
 }
 

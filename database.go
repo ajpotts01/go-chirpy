@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -14,31 +13,21 @@ type Database struct {
 	mux  *sync.RWMutex
 }
 
-type ChirpData struct {
+type DatabaseSchema struct {
 	Chirps map[int]Chirp `json:"chirps"`
+	Users  map[int]User  `json:"users"`
 }
 
 func (db *Database) CreateChirp(body string) (Chirp, error) {
 	var chirp Chirp
-	var maxId, newId int
 
-	chirps, err := db.loadDatabase()
+	database, err := db.loadDatabase()
 
 	if err != nil {
 		return chirp, err
 	}
 
-	for maxId = range chirps.Chirps {
-		break
-	}
-
-	for nextId := range chirps.Chirps {
-		if nextId > maxId {
-			maxId = nextId
-		}
-	}
-
-	newId = maxId + 1
+	newId := len(database.Chirps) + 1
 
 	chirp = Chirp{
 		Id:   newId,
@@ -49,12 +38,12 @@ func (db *Database) CreateChirp(body string) (Chirp, error) {
 	fmt.Printf("Id: %v\n", chirp.Id)
 	fmt.Printf("Body: %v\n", chirp.Body)
 
-	if chirps.Chirps == nil {
-		chirps.Chirps = make(map[int]Chirp)
+	if database.Chirps == nil {
+		database.Chirps = make(map[int]Chirp)
 	}
 
-	chirps.Chirps[newId] = chirp
-	err = db.writeDatabase(chirps)
+	database.Chirps[newId] = chirp
+	err = db.writeDatabase(database)
 
 	if err != nil {
 		fmt.Printf("Error writing database: %v\n", err.Error())
@@ -66,37 +55,36 @@ func (db *Database) CreateChirp(body string) (Chirp, error) {
 
 func (db *Database) ReadSingleChirp(id int) (Chirp, error) {
 	var chirp Chirp
-	chirpData, err := db.loadDatabase()
+	database, err := db.loadDatabase()
 
 	if err != nil {
 		fmt.Printf("Error reading chirps: %v\n", err.Error())
 		return chirp, err
 	}
 
-	fmt.Printf("Chirps: %v\n", chirpData)
+	fmt.Printf("Chirps: %v\n", database.Chirps)
 
-	for _, val := range chirpData.Chirps {
-		fmt.Printf("Loaded chirp: %v\n", val)
-		if val.Id == id {
-			return val, nil
-		}
+	chirp, ok := database.Chirps[id]
+
+	if !ok {
+		return Chirp{}, os.ErrNotExist
 	}
 
-	return chirp, errors.New("not found")
+	return chirp, nil
 }
 
 func (db *Database) ReadChirps() ([]Chirp, error) {
 	var chirps []Chirp
-	chirpData, err := db.loadDatabase()
+	database, err := db.loadDatabase()
 
 	if err != nil {
 		fmt.Printf("Error reading chirps: %v\n", err.Error())
 		return chirps, err
 	}
 
-	fmt.Printf("Chirps: %v\n", chirpData)
+	fmt.Printf("Chirps: %v\n", database.Chirps)
 
-	for _, val := range chirpData.Chirps {
+	for _, val := range database.Chirps {
 		fmt.Printf("Loaded chirp: %v\n", val)
 		chirps = append(chirps, val)
 	}
@@ -106,68 +94,83 @@ func (db *Database) ReadChirps() ([]Chirp, error) {
 	return chirps, nil
 }
 
-func (db *Database) loadDatabase() (ChirpData, error) {
-	var rawData []byte
-	var chirpData ChirpData
+func (db *Database) CreateUser(email string) (User, error) {
+	var user User
+
+	database, err := db.loadDatabase()
+
+	if err != nil {
+		return user, err
+	}
+
+	newId := len(database.Users) + 1
+
+	user = User{
+		Id:    newId,
+		Email: email,
+	}
+
+	fmt.Printf("New User:\n")
+	fmt.Printf("Id: %v\n", user.Id)
+	fmt.Printf("Email: %v\n", user.Email)
+
+	if database.Users == nil {
+		database.Users = make(map[int]User)
+	}
+
+	database.Users[newId] = user
+	err = db.writeDatabase(database)
+
+	if err != nil {
+		fmt.Printf("Error writing database: %v\n", err.Error())
+		return User{}, err
+	}
+
+	return user, nil
+}
+
+func (db *Database) loadDatabase() (DatabaseSchema, error) {
+	var data DatabaseSchema
 
 	db.mux.RLock()
 	defer db.mux.RUnlock()
 	fmt.Printf("Opening %v...\n", db.path)
-	//	f, err := os.OpenFile(db.path, os.O_RDWR, 0666) // 0666 = read/write?
-
-	//	defer f.Close()
 
 	rawData, err := os.ReadFile(db.path)
 
 	if err != nil {
 		fmt.Printf("Error opening database file: %v\n", err.Error())
-		return chirpData, err
-	}
-
-	if err != nil {
-		fmt.Printf("Error loading data: %v\n", err)
-		return chirpData, err
+		return data, err
 	}
 
 	fmt.Printf("%v bytes read\n", len(rawData))
 
 	if len(rawData) > 0 {
-		err = json.Unmarshal(rawData, &chirpData)
+		err = json.Unmarshal(rawData, &data)
 		if err != nil {
 			fmt.Println("There was an error unmarshalling JSON data.")
 			fmt.Printf("Data: %v\n", rawData)
-			return chirpData, err
+			return data, err
 		}
 	}
 
-	return chirpData, nil
+	return data, nil
 }
 
-func (db *Database) writeDatabase(chirpData ChirpData) error {
+func (db *Database) writeDatabase(data DatabaseSchema) error {
 	var rawData []byte
 
 	db.mux.Lock()
 	defer db.mux.Unlock()
 
-	f, err := os.OpenFile(db.path, os.O_RDWR, 0666) // 0666 = read/write?
-	defer f.Close()
+	rawData, err := json.Marshal(data)
 
 	if err != nil {
-		fmt.Printf("Error opening database path: %v\n", err.Error())
+		fmt.Printf("Error marshalling JSON data: %v\n", err.Error())
 		return err
 	}
 
-	fmt.Printf("Chirp data to write: %v\n", chirpData.Chirps)
-	rawData, err = json.Marshal(chirpData)
-
-	if err != nil {
-		return err
-	}
-
-	// Blow away contents
-	f.Truncate(0)
-	f.Seek(0, 0)
-	_, err = f.Write(rawData)
+	err = os.WriteFile(db.path, rawData, 0600) // 0600 is R/W?
 
 	if err != nil {
 		fmt.Printf("Error writing to database: %v\n", err.Error())
