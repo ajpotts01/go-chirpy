@@ -9,18 +9,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ajpotts01/go-chirpy/internal/database"
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/crypto/bcrypt"
 )
-
-type Chirp struct {
-	Body string `json:"body"`
-	Id   int    `json:"id"`
-}
-
-type User struct {
-	Email string `json:"email"`
-	Id    int    `json:"id"`
-}
 
 type apiConfig struct {
 	serverHits int
@@ -71,7 +63,7 @@ func profanityFilter(body string) string {
 }
 
 func readChirp(w http.ResponseWriter, r *http.Request) {
-	database, err := NewDatabase("database.json")
+	database, err := database.NewDatabase("database.json")
 
 	if err != nil {
 		log.Printf("Error creating database connection: %v", err.Error())
@@ -148,7 +140,7 @@ func createChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	database, err := NewDatabase("database.json")
+	database, err := database.NewDatabase("database.json")
 
 	if err != nil {
 		log.Printf("Error creating database connection: %v", err.Error())
@@ -170,7 +162,8 @@ func createChirp(w http.ResponseWriter, r *http.Request) {
 
 func createUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -185,7 +178,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	database, err := NewDatabase("database.json")
+	database, err := database.NewDatabase("database.json")
 
 	if err != nil {
 		log.Printf("Error creating database connection: %v", err.Error())
@@ -193,7 +186,7 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newUser, err := database.CreateUser(params.Email)
+	newUser, err := database.CreateUser(params.Email, params.Password)
 
 	if err != nil {
 		log.Printf("Error creating new User: %v", err.Error())
@@ -201,7 +194,90 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	newUser.Password = nil
 	validResponse(w, http.StatusCreated, newUser)
+	return
+}
+
+func readUser(w http.ResponseWriter, r *http.Request) {
+	database, err := database.NewDatabase("database.json")
+
+	if err != nil {
+		log.Printf("Error creating database connection: %v", err.Error())
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	fmt.Println("Database connection open...")
+
+	providedId := chi.URLParam(r, "id")
+
+	id, err := strconv.Atoi(providedId)
+
+	if err != nil {
+		id = 0
+	}
+
+	user, err := database.ReadUser(id)
+
+	user.Password = nil // Will this make the password not return at all?
+
+	if err != nil {
+		if err == os.ErrNotExist {
+			errorResponse(w, http.StatusNotFound, err.Error())
+			return
+		}
+
+		log.Printf("Error creating database connection: %v", err.Error())
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	validResponse(w, http.StatusOK, user)
+	return
+}
+
+func authUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	database, err := database.NewDatabase("database.json")
+
+	if err != nil {
+		log.Printf("Error creating database connection: %v", err.Error())
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	fmt.Println("Database connection open...")
+
+	authUser, err := database.AuthUser(params.Email, params.Password)
+
+	if err != nil {
+		if err == bcrypt.ErrMismatchedHashAndPassword {
+			errorResponse(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		errorResponse(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	validResponse(w, http.StatusOK, authUser)
 	return
 }
 
