@@ -8,9 +8,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ajpotts01/go-chirpy/internal/database"
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -238,10 +240,29 @@ func readUser(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+func getJwt(expiry int, user database.User) {
+	claims := jwt.RegisteredClaims{
+		Issuer: "chirpy",
+		IssuedAt: &jwt.NumericDate{
+			time.Now().UTC(),
+		},
+		ExpiresAt: &jwt.NumericDate{
+			time.Now().UTC().Add(time.Duration(expiry * int(time.Second))),
+		},
+		Subject: fmt.Sprint(user.Id),
+	}
+	jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+}
+
 func authUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
+	}
+
+	type response struct {
+		database.User
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -256,7 +277,7 @@ func authUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	database, err := database.NewDatabase("database.json")
+	db, err := database.NewDatabase("database.json")
 
 	if err != nil {
 		log.Printf("Error creating database connection: %v", err.Error())
@@ -266,7 +287,7 @@ func authUser(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("Database connection open...")
 
-	authUser, err := database.AuthUser(params.Email, params.Password)
+	authUser, err := db.AuthUser(params.Email, params.Password)
 
 	if err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
@@ -278,7 +299,13 @@ func authUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validResponse(w, http.StatusOK, authUser)
+	validResponse(w, http.StatusOK, response{
+		User: database.User{
+			Id:    authUser.Id,
+			Email: authUser.Email,
+			Token: "yeah",
+		},
+	})
 	return
 }
 
