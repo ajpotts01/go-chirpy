@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ajpotts01/go-chirpy/internal/database"
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 )
@@ -22,25 +23,32 @@ func main() {
 
 	godotenv.Load()
 
-	cfg := apiConfig{
+	dbConn, err := database.NewDatabase("database.json")
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	config := apiConfig{
 		serverHits: 0,
 		jwtSecret:  os.Getenv("JWT_SECRET"),
+		DbConn:     dbConn,
 	}
 
 	appRouter := chi.NewRouter()
-	fsHandler := cfg.metrics(http.StripPrefix(appEndpoint, http.FileServer(http.Dir(dirRoot))))
+	fsHandler := config.metrics(http.StripPrefix(appEndpoint, http.FileServer(http.Dir(dirRoot))))
 
 	apiRouter := chi.NewRouter()
 	apiRouter.Get(healthEndpoint, ready)
-	apiRouter.Get(chirpEndpoint, readChirp)
-	apiRouter.Get(singleChirpEndpoint, readChirp)
-	apiRouter.Post(chirpEndpoint, createChirp)
-	apiRouter.Post(userEndpoint, createUser)
-	apiRouter.Get(userEndpoint, readUser)
-	apiRouter.Post(loginEndpoint, authUser)
+	apiRouter.Get(chirpEndpoint, config.readChirp)
+	apiRouter.Get(singleChirpEndpoint, config.readChirp)
+	apiRouter.Post(chirpEndpoint, config.createChirp)
+	apiRouter.Post(userEndpoint, config.createUser)
+	apiRouter.Get(userEndpoint, config.readUser)
+	apiRouter.Post(loginEndpoint, config.authUser)
 
 	adminRouter := chi.NewRouter()
-	adminRouter.Get(metricsEndpoint, cfg.hits)
+	adminRouter.Get(metricsEndpoint, config.hits)
 
 	// Done a bit differently to the boot.dev example
 	// They just use router in the same way as mux

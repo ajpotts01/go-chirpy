@@ -8,10 +8,9 @@ import (
 )
 
 type User struct {
-	Password []byte `json:"password,omitempty"`
+	Password []byte `json:"password"`
 	Email    string `json:"email"`
 	Id       int    `json:"id"`
-	Token    string `json:"token"`
 }
 
 func (db *Database) CreateUser(email string, password string) (User, error) {
