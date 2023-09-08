@@ -20,6 +20,8 @@ func main() {
 	const singleChirpEndpoint = "/chirps/{id}"
 	const userEndpoint = "/users"
 	const loginEndpoint = "/login"
+	const refreshEndpoint = "/refresh"
+	const revokeEndpoint = "/revoke"
 
 	godotenv.Load()
 
@@ -47,6 +49,8 @@ func main() {
 	apiRouter.Get(userEndpoint, config.readUser)
 	apiRouter.Put(userEndpoint, config.updateUser)
 	apiRouter.Post(loginEndpoint, config.authUser)
+	apiRouter.Post(refreshEndpoint, config.refreshToken)
+	apiRouter.Post(revokeEndpoint, config.revokeToken)
 
 	adminRouter := chi.NewRouter()
 	adminRouter.Get(metricsEndpoint, config.hits)

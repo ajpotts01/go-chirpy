@@ -8,9 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/ajpotts01/go-chirpy/internal/database"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -22,9 +20,8 @@ type userParams struct {
 }
 
 type userAuthParams struct {
-	Email            string `json:"email"`
-	Password         string `json:"password"`
-	ExpiresInSeconds int    `json:"expires_in_seconds"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 // No token or passwords returned
@@ -34,9 +31,10 @@ type userReturn struct {
 }
 
 type userAuthReturn struct {
-	Id    int    `json:"id"`
-	Email string `json:"string"`
-	Token string `json:"token"`
+	Id           int    `json:"id"`
+	Email        string `json:"string"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 type userUpdateParams struct {
@@ -44,6 +42,11 @@ type userUpdateParams struct {
 	Password string `json:"password"`
 }
 
+type refreshTokenReturn struct {
+	Token string `json:"token"`
+}
+
+// POST /api/users
 func (config *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
@@ -73,6 +76,7 @@ func (config *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// GET /api/users/{id}
 func (config *apiConfig) readUser(w http.ResponseWriter, r *http.Request) {
 	providedId := chi.URLParam(r, "id")
 
@@ -99,6 +103,7 @@ func (config *apiConfig) readUser(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// POST /api/users/login
 func (config *apiConfig) authUser(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	params := userAuthParams{}
@@ -126,30 +131,34 @@ func (config *apiConfig) authUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expiry := params.ExpiresInSeconds
-
-	if expiry == 0 {
-		expiry = 60 * 60 * 24 // 24 hours
-	}
-
-	log.Printf("Token will expire in %v seconds", expiry)
-	token, err := getJwt(expiry, authUser)
+	accessToken, err := getJwt("chirpy-access", getAccessTokenExpiry(), fmt.Sprint(authUser.Id))
 
 	if err != nil {
-		log.Printf("%v error getting token: %v\n", http.StatusInternalServerError, err)
+		log.Printf("%v error getting access token: %v\n", http.StatusInternalServerError, err)
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	refreshToken, err := getJwt("chirpy-refresh", getRefreshTokenExpiry(), fmt.Sprint(authUser.Id))
+
+	if err != nil {
+		log.Printf("%v error getting refresh token: %v\n", http.StatusInternalServerError, err)
 		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	log.Printf("Returning valid authorized user.")
 	validResponse(w, http.StatusOK, userAuthReturn{
-		Email: authUser.Email,
-		Id:    authUser.Id,
-		Token: token,
+		Email:        authUser.Email,
+		Id:           authUser.Id,
+		Token:        accessToken,
+		RefreshToken: refreshToken,
 	})
 	return
 }
 
+// PUT /api/users
+// TODO: This function is far too long
 func (config *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	params := userUpdateParams{}
@@ -183,6 +192,12 @@ func (config *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if claims, ok := token.Claims.(*jwt.RegisteredClaims); ok && token.Valid {
+
+		// Only access tokens allowed
+		if claims.Issuer == "chirpy-refresh" {
+			errorResponse(w, http.StatusUnauthorized, "Invalid token issuer")
+		}
+
 		id, err := strconv.Atoi(claims.Subject)
 
 		if err != nil {
@@ -204,36 +219,7 @@ func (config *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 		return
 
 	} else {
-		log.Printf("Supplied Token: %v", suppliedToken)
-		log.Printf("Parsed token: %v", token)
 		errorResponse(w, http.StatusUnauthorized, "Bad token")
 		return
 	}
-}
-
-func getJwt(expiry int, user database.User) (string, error) {
-	claims := jwt.RegisteredClaims{
-		Issuer: "chirpy",
-		IssuedAt: &jwt.NumericDate{
-			time.Now().UTC(),
-		},
-		ExpiresAt: &jwt.NumericDate{
-			time.Now().UTC().Add(time.Duration(expiry * int(time.Second))),
-		},
-		Subject: fmt.Sprint(user.Id),
-	}
-	log.Println("Claims set up")
-
-	newToken := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	log.Println("Token created")
-
-	fmt.Println(os.Getenv("JWT_SECRET"))
-	tokenStr, err := newToken.SignedString([]byte(os.Getenv("JWT_SECRET")))
-
-	if err != nil {
-		fmt.Printf("Failed to sign token: %v\n", err)
-		return "", err
-	}
-
-	return tokenStr, nil
 }

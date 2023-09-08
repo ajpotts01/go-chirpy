@@ -13,8 +13,9 @@ type Database struct {
 }
 
 type DatabaseSchema struct {
-	Chirps map[int]Chirp `json:"chirps"`
-	Users  map[int]User  `json:"users"`
+	Chirps        map[int]Chirp     `json:"chirps"`
+	Users         map[int]User      `json:"users"`
+	RevokedTokens map[string]string `json:"revoked_tokens"`
 }
 
 func (db *Database) loadDatabase() (DatabaseSchema, error) {
