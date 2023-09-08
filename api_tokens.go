@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,75 +12,74 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+func checkToken(suppliedToken string, expectedIssuer string) (*jwt.RegisteredClaims, error) {
+	// This function won't check whether a token is revoked.
+	// It will just parse and return claims, agnostic of access/refresh
+	token, err := jwt.ParseWithClaims(suppliedToken, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(os.Getenv("JWT_SECRET")), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*jwt.RegisteredClaims); ok && token.Valid {
+		if claims.Issuer != expectedIssuer {
+			return nil, errors.New("Bad token type")
+		}
+		return claims, nil
+	}
+
+	return nil, errors.New("could not parse token claims")
+}
+
 // POST /api/refresh
 func (config *apiConfig) refreshToken(w http.ResponseWriter, r *http.Request) {
 	// No body, just check headers
-	authHeader := r.Header.Get("Authorization")
+	suppliedToken, err := getSuppliedToken(r)
 
-	if authHeader == "" {
-		log.Printf("Unauthorized")
-		errorResponse(w, http.StatusBadRequest, "Must provide authorization header")
+	if err != nil {
+		errorResponse(w, http.StatusUnauthorized, "Bad authorization header")
 		return
 	}
 
-	suppliedToken := strings.Replace(authHeader, "Bearer ", "", 1)
-
-	// TODO: If revoked
 	revoked, err := config.DbConn.IsTokenRevoked(suppliedToken)
 	if revoked {
 		errorResponse(w, http.StatusUnauthorized, "This refresh token has been revoked")
 		return
 	}
 
-	token, err := jwt.ParseWithClaims(suppliedToken, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(os.Getenv("JWT_SECRET")), nil
-	})
-
+	claims, err := checkToken(suppliedToken, "chirpy-refresh")
 	if err != nil {
-		log.Printf("Error parsing token")
 		errorResponse(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 
-	if claims, ok := token.Claims.(*jwt.RegisteredClaims); ok && token.Valid {
-		if claims.Issuer != "chirpy-refresh" {
-			errorResponse(w, http.StatusUnauthorized, "Only refresh tokens are accepted")
-		}
+	token, err := getJwt("chirpy-refresh", getRefreshTokenExpiry(), claims.Subject)
 
-		token, err := getJwt("chirpy-refresh", getRefreshTokenExpiry(), claims.Subject)
-
-		if err != nil {
-			log.Printf("%v error getting token: %v\n", http.StatusInternalServerError, err)
-			errorResponse(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		log.Printf("Returning valid refresh token.")
-		validResponse(w, http.StatusOK, refreshTokenReturn{
-			Token: token,
-		})
-		return
-
-	} else {
-		errorResponse(w, http.StatusUnauthorized, "Bad token")
+	if err != nil {
+		log.Printf("%v error getting token: %v\n", http.StatusInternalServerError, err)
+		errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
+	log.Printf("Returning valid refresh token.")
+	validResponse(w, http.StatusOK, refreshTokenReturn{
+		Token: token,
+	})
+	return
 }
 
 func (config *apiConfig) revokeToken(w http.ResponseWriter, r *http.Request) {
 	// No body, just check headers
-	authHeader := r.Header.Get("Authorization")
+	suppliedToken, err := getSuppliedToken(r)
 
-	if authHeader == "" {
-		log.Printf("Unauthorized")
-		errorResponse(w, http.StatusBadRequest, "Must provide authorization header")
+	if err != nil {
+		errorResponse(w, http.StatusUnauthorized, "Bad authorization header")
 		return
 	}
 
-	suppliedToken := strings.Replace(authHeader, "Bearer ", "", 1)
-
-	err := config.DbConn.RevokeToken(suppliedToken)
+	err = config.DbConn.RevokeToken(suppliedToken)
 
 	if err != nil {
 		errorResponse(w, http.StatusInternalServerError, "Error revoking token")
@@ -124,4 +124,15 @@ func getJwt(issuer string, expiresAt time.Time, subject string) (string, error) 
 	}
 
 	return tokenStr, nil
+}
+
+func getSuppliedToken(r *http.Request) (string, error) {
+	authHeader := r.Header.Get("Authorization")
+
+	if authHeader == "" {
+		return "", errors.New("must supply authorization header")
+	}
+
+	suppliedToken := strings.Replace(authHeader, "Bearer ", "", 1)
+	return suppliedToken, nil
 }

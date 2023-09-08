@@ -7,10 +7,8 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -171,55 +169,38 @@ func (config *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authHeader := r.Header.Get("Authorization")
+	suppliedToken, err := getSuppliedToken(r)
 
-	if authHeader == "" {
-		log.Printf("Unauthorized")
-		errorResponse(w, http.StatusBadRequest, "Must provide authorization header")
+	if err != nil {
+		errorResponse(w, http.StatusUnauthorized, "Bad authorization header")
 		return
 	}
 
-	suppliedToken := strings.Replace(authHeader, "Bearer ", "", 1)
-
-	token, err := jwt.ParseWithClaims(suppliedToken, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(os.Getenv("JWT_SECRET")), nil
-	})
+	claims, err := checkToken(suppliedToken, "chirpy-access")
 
 	if err != nil {
-		log.Printf("Error parsing token")
 		errorResponse(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 
-	if claims, ok := token.Claims.(*jwt.RegisteredClaims); ok && token.Valid {
+	id, err := strconv.Atoi(claims.Subject)
 
-		// Only access tokens allowed
-		if claims.Issuer == "chirpy-refresh" {
-			errorResponse(w, http.StatusUnauthorized, "Invalid token issuer")
-		}
-
-		id, err := strconv.Atoi(claims.Subject)
-
-		if err != nil {
-			errorResponse(w, http.StatusInternalServerError, "Failed to parse user ID")
-			return
-		}
-
-		updatedUser, err := config.DbConn.UpdateUser(id, params.Email, params.Password)
-
-		if err != nil {
-			errorResponse(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		validResponse(w, http.StatusOK, userReturn{
-			Id:    updatedUser.Id,
-			Email: updatedUser.Email,
-		})
-		return
-
-	} else {
-		errorResponse(w, http.StatusUnauthorized, "Bad token")
+	if err != nil {
+		errorResponse(w, http.StatusInternalServerError, "Failed to parse user ID")
 		return
 	}
+
+	updatedUser, err := config.DbConn.UpdateUser(id, params.Email, params.Password)
+
+	if err != nil {
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	validResponse(w, http.StatusOK, userReturn{
+		Id:    updatedUser.Id,
+		Email: updatedUser.Email,
+	})
+	return
+
 }
