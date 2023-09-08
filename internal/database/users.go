@@ -1,14 +1,16 @@
 package database
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"os"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
-	Password []byte `json:"password,omitempty"`
+	Password []byte `json:"password"`
 	Email    string `json:"email"`
 	Id       int    `json:"id"`
 }
@@ -36,9 +38,9 @@ func (db *Database) CreateUser(email string, password string) (User, error) {
 		Password: hashPass,
 	}
 
-	fmt.Printf("New User:\n")
-	fmt.Printf("Id: %v\n", user.Id)
-	fmt.Printf("Email: %v\n", user.Email)
+	log.Printf("New User:\n")
+	log.Printf("Id: %v\n", user.Id)
+	log.Printf("Email: %v\n", user.Email)
 
 	if database.Users == nil {
 		database.Users = make(map[int]User)
@@ -48,7 +50,7 @@ func (db *Database) CreateUser(email string, password string) (User, error) {
 	err = db.writeDatabase(database)
 
 	if err != nil {
-		fmt.Printf("Error writing database: %v\n", err.Error())
+		log.Printf("Error writing database: %v\n", err.Error())
 		return User{}, err
 	}
 
@@ -92,4 +94,38 @@ func (db *Database) AuthUser(email string, password string) (User, error) {
 	}
 
 	return User{}, os.ErrNotExist
+}
+
+func (db *Database) UpdateUser(id int, email string, password string) (User, error) {
+	database, err := db.loadDatabase()
+
+	if err != nil {
+		return User{}, err
+	}
+
+	user, ok := database.Users[id]
+
+	if !ok {
+		return User{}, errors.New("user does not exist")
+	}
+
+	hashPass, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+	user.Email = email
+	user.Password = hashPass
+
+	log.Printf("Update User:\n")
+	log.Printf("Id: %v\n", user.Id)
+	log.Printf("Email: %v\n", user.Email)
+
+	database.Users[id] = user
+	err = db.writeDatabase(database)
+
+	if err != nil {
+		fmt.Printf("Error writing database: %v\n", err.Error())
+		return User{}, err
+	}
+
+	return user, nil
+
 }
