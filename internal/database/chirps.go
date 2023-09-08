@@ -2,16 +2,18 @@ package database
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"sort"
 )
 
 type Chirp struct {
-	Body string `json:"body"`
-	Id   int    `json:"id"`
+	Body     string `json:"body"`
+	Id       int    `json:"id"`
+	AuthorId int    `json:"author_id"`
 }
 
-func (db *Database) CreateChirp(body string) (Chirp, error) {
+func (db *Database) CreateChirp(body string, authorId int) (Chirp, error) {
 	var chirp Chirp
 
 	database, err := db.loadDatabase()
@@ -23,13 +25,15 @@ func (db *Database) CreateChirp(body string) (Chirp, error) {
 	newId := len(database.Chirps) + 1
 
 	chirp = Chirp{
-		Id:   newId,
-		Body: body,
+		Id:       newId,
+		Body:     body,
+		AuthorId: authorId,
 	}
 
-	fmt.Printf("New Chirp:\n")
-	fmt.Printf("Id: %v\n", chirp.Id)
-	fmt.Printf("Body: %v\n", chirp.Body)
+	log.Printf("New Chirp:\n")
+	log.Printf("Id: %v\n", chirp.Id)
+	log.Printf("Author Id: %v\n", chirp.AuthorId)
+	log.Printf("Body: %v\n", chirp.Body)
 
 	if database.Chirps == nil {
 		database.Chirps = make(map[int]Chirp)

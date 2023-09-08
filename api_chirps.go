@@ -13,8 +13,9 @@ import (
 )
 
 type chirpReturn struct {
-	Body string `json:"body"`
-	Id   int    `json:"id"`
+	Body     string `json:"body"`
+	AuthorId int    `json:"author_id"`
+	Id       int    `json:"id"`
 }
 
 type chirpParams struct {
@@ -85,9 +86,27 @@ func (config *apiConfig) readChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (config *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
+	suppliedToken, err := getSuppliedToken(r)
+	if err != nil {
+		errorResponse(w, http.StatusUnauthorized, "Bad authorization header")
+		return
+	}
+
+	claims, err := checkToken(suppliedToken, "chirpy-access")
+	if err != nil {
+		errorResponse(w, http.StatusUnauthorized, "Bad token")
+		return
+	}
+
+	authorId, err := strconv.Atoi(claims.Subject)
+	if err != nil {
+		errorResponse(w, http.StatusInternalServerError, "Could not determined author ID")
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	params := chirpParams{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 
 	if err != nil {
 		log.Printf("Error decoding parameters: %s", err)
@@ -106,7 +125,7 @@ func (config *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newChirp, err := config.DbConn.CreateChirp(cleanedBody)
+	newChirp, err := config.DbConn.CreateChirp(cleanedBody, authorId)
 
 	if err != nil {
 		log.Printf("Error creating new Chirp: %v", err.Error())
@@ -115,8 +134,9 @@ func (config *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	validResponse(w, http.StatusCreated, chirpReturn{
-		Id:   newChirp.Id,
-		Body: newChirp.Body,
+		Id:       newChirp.Id,
+		Body:     newChirp.Body,
+		AuthorId: authorId,
 	})
 	return
 }
