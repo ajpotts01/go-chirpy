@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ajpotts01/go-chirpy/internal/database"
@@ -36,6 +37,11 @@ type userAuthReturn struct {
 	Id    int    `json:"id"`
 	Email string `json:"string"`
 	Token string `json:"token"`
+}
+
+type userUpdateParams struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 func (config *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
@@ -106,8 +112,6 @@ func (config *apiConfig) authUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	fmt.Println("Database connection open...")
-
 	authUser, err := config.DbConn.AuthUser(params.Email, params.Password)
 
 	if err != nil {
@@ -122,7 +126,14 @@ func (config *apiConfig) authUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := getJwt(params.ExpiresInSeconds, authUser)
+	expiry := params.ExpiresInSeconds
+
+	if expiry == 0 {
+		expiry = 60 * 60 * 24 // 24 hours
+	}
+
+	log.Printf("Token will expire in %v seconds", expiry)
+	token, err := getJwt(expiry, authUser)
 
 	if err != nil {
 		log.Printf("%v error getting token: %v\n", http.StatusInternalServerError, err)
@@ -137,6 +148,67 @@ func (config *apiConfig) authUser(w http.ResponseWriter, r *http.Request) {
 		Token: token,
 	})
 	return
+}
+
+func (config *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	params := userUpdateParams{}
+	err := decoder.Decode(&params)
+	w.Header().Set("Content-Type", "application/json")
+
+	if err != nil {
+		log.Printf("%v error getting parameters: %v\n", http.StatusInternalServerError, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	authHeader := r.Header.Get("Authorization")
+
+	if authHeader == "" {
+		log.Printf("Unauthorized")
+		errorResponse(w, http.StatusBadRequest, "Must provide authorization header")
+		return
+	}
+
+	suppliedToken := strings.Replace(authHeader, "Bearer ", "", 1)
+
+	token, err := jwt.ParseWithClaims(suppliedToken, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(os.Getenv("JWT_SECRET")), nil
+	})
+
+	if err != nil {
+		log.Printf("Error parsing token")
+		errorResponse(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	if claims, ok := token.Claims.(*jwt.RegisteredClaims); ok && token.Valid {
+		id, err := strconv.Atoi(claims.Subject)
+
+		if err != nil {
+			errorResponse(w, http.StatusInternalServerError, "Failed to parse user ID")
+			return
+		}
+
+		updatedUser, err := config.DbConn.UpdateUser(id, params.Email, params.Password)
+
+		if err != nil {
+			errorResponse(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		validResponse(w, http.StatusOK, userReturn{
+			Id:    updatedUser.Id,
+			Email: updatedUser.Email,
+		})
+		return
+
+	} else {
+		log.Printf("Supplied Token: %v", suppliedToken)
+		log.Printf("Parsed token: %v", token)
+		errorResponse(w, http.StatusUnauthorized, "Bad token")
+		return
+	}
 }
 
 func getJwt(expiry int, user database.User) (string, error) {

@@ -45,6 +45,7 @@ func main() {
 	apiRouter.Post(chirpEndpoint, config.createChirp)
 	apiRouter.Post(userEndpoint, config.createUser)
 	apiRouter.Get(userEndpoint, config.readUser)
+	apiRouter.Put(userEndpoint, config.updateUser)
 	apiRouter.Post(loginEndpoint, config.authUser)
 
 	adminRouter := chi.NewRouter()
