@@ -2,7 +2,6 @@ package database
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"os"
 
@@ -10,9 +9,10 @@ import (
 )
 
 type User struct {
-	Password []byte `json:"password"`
-	Email    string `json:"email"`
-	Id       int    `json:"id"`
+	Password    []byte `json:"password"`
+	Email       string `json:"email"`
+	Id          int    `json:"id"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 func (db *Database) CreateUser(email string, password string) (User, error) {
@@ -33,9 +33,10 @@ func (db *Database) CreateUser(email string, password string) (User, error) {
 	}
 
 	user = User{
-		Id:       newId,
-		Email:    email,
-		Password: hashPass,
+		Id:          newId,
+		Email:       email,
+		Password:    hashPass,
+		IsChirpyRed: false,
 	}
 
 	log.Printf("New User:\n")
@@ -122,10 +123,37 @@ func (db *Database) UpdateUser(id int, email string, password string) (User, err
 	err = db.writeDatabase(database)
 
 	if err != nil {
-		fmt.Printf("Error writing database: %v\n", err.Error())
+		log.Printf("Error writing database: %v\n", err.Error())
 		return User{}, err
 	}
 
 	return user, nil
 
+}
+
+func (db *Database) UpgradeUser(userId int) error {
+	database, err := db.loadDatabase()
+
+	if err != nil {
+		log.Printf("Error loading database: %v\n", err.Error())
+		return err
+	}
+
+	user, err := db.ReadUser(userId)
+
+	if err != nil {
+		log.Printf("Error finding user: %v\n", err.Error())
+		return err
+	}
+
+	user.IsChirpyRed = true
+	database.Users[userId] = user
+	err = db.writeDatabase(database)
+
+	if err != nil {
+		log.Printf("Error writing database: %v\n", err.Error())
+		return err
+	}
+
+	return nil
 }

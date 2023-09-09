@@ -24,15 +24,17 @@ type userAuthParams struct {
 
 // No token or passwords returned
 type userReturn struct {
-	Id    int    `json:"id"`
-	Email string `json:"email"`
+	Id          int    `json:"id"`
+	Email       string `json:"email"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 type userAuthReturn struct {
 	Id           int    `json:"id"`
-	Email        string `json:"string"`
+	Email        string `json:"email"`
 	Token        string `json:"token"`
 	RefreshToken string `json:"refresh_token"`
+	IsChirpyRed  bool   `json:"is_chirpy_red"`
 }
 
 type userUpdateParams struct {
@@ -68,8 +70,9 @@ func (config *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	validResponse(w, http.StatusCreated, userReturn{
-		Id:    newUser.Id,
-		Email: newUser.Email,
+		Id:          newUser.Id,
+		Email:       newUser.Email,
+		IsChirpyRed: newUser.IsChirpyRed,
 	})
 	return
 }
@@ -151,6 +154,7 @@ func (config *apiConfig) authUser(w http.ResponseWriter, r *http.Request) {
 		Id:           authUser.Id,
 		Token:        accessToken,
 		RefreshToken: refreshToken,
+		IsChirpyRed:  authUser.IsChirpyRed,
 	})
 	return
 }
@@ -198,8 +202,9 @@ func (config *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	validResponse(w, http.StatusOK, userReturn{
-		Id:    updatedUser.Id,
-		Email: updatedUser.Email,
+		Id:          updatedUser.Id,
+		Email:       updatedUser.Email,
+		IsChirpyRed: updatedUser.IsChirpyRed,
 	})
 	return
 

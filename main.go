@@ -22,6 +22,7 @@ func main() {
 	const loginEndpoint = "/login"
 	const refreshEndpoint = "/refresh"
 	const revokeEndpoint = "/revoke"
+	const polkaHook = "/polka/webhooks"
 
 	godotenv.Load()
 
@@ -58,6 +59,9 @@ func main() {
 	apiRouter.Post(loginEndpoint, config.authUser)
 	apiRouter.Post(refreshEndpoint, config.refreshToken)
 	apiRouter.Post(revokeEndpoint, config.revokeToken)
+
+	// Webhooks
+	apiRouter.Post(polkaHook, config.upgradeUser)
 
 	adminRouter := chi.NewRouter()
 	adminRouter.Get(metricsEndpoint, config.hits)
