@@ -69,7 +69,7 @@ func (db *Database) ReadSingleChirp(id int) (Chirp, error) {
 	return chirp, nil
 }
 
-func (db *Database) ReadChirps() ([]Chirp, error) {
+func (db *Database) ReadChirps(authorId int, sortOrder string) ([]Chirp, error) {
 	var chirps []Chirp
 	database, err := db.loadDatabase()
 
@@ -81,12 +81,19 @@ func (db *Database) ReadChirps() ([]Chirp, error) {
 	log.Printf("Chirps: %v\n", database.Chirps)
 
 	for _, val := range database.Chirps {
-		log.Printf("Loaded chirp: %v\n", val)
-		chirps = append(chirps, val)
+		if authorId == 0 || authorId == val.AuthorId {
+			log.Printf("Loaded chirp: %v\n", val)
+			chirps = append(chirps, val)
+		}
 	}
 
 	// Sort asc by ID
-	sort.Slice(chirps, func(i, j int) bool { return chirps[i].Id < chirps[j].Id })
+	sort.Slice(chirps, func(i, j int) bool {
+		if sortOrder == "desc" {
+			return chirps[i].Id > chirps[j].Id
+		}
+		return chirps[i].Id < chirps[j].Id
+	})
 	return chirps, nil
 }
 

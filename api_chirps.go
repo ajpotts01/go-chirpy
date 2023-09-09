@@ -52,7 +52,21 @@ func (config *apiConfig) readChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if id == 0 {
-		chirps, err := config.DbConn.ReadChirps()
+		providedAuthorId := r.URL.Query().Get("author_id")
+		authorId, err := strconv.Atoi(providedAuthorId)
+
+		if err != nil {
+			authorId = 0
+		}
+
+		sort := "asc"
+		providedSort := r.URL.Query().Get("sort")
+
+		if providedSort != "" {
+			sort = providedSort
+		}
+
+		chirps, err := config.DbConn.ReadChirps(authorId, sort)
 
 		if err != nil {
 			log.Printf("Error creating database connection: %v", err.Error())
