@@ -173,7 +173,7 @@ func (config *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	suppliedToken, err := getSuppliedToken(r)
+	suppliedToken, err := getAuthHeaderItem(r, "Bearer")
 
 	if err != nil {
 		errorResponse(w, http.StatusUnauthorized, "Bad authorization header")

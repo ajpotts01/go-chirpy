@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 )
 
 type webhookData struct {
@@ -16,10 +17,18 @@ type webhookEvent struct {
 }
 
 func (config *apiConfig) upgradeUser(w http.ResponseWriter, r *http.Request) {
+	apiKey, err := getAuthHeaderItem(r, "ApiKey")
+
+	if err != nil || apiKey != os.Getenv("POLKA_KEY") {
+		log.Printf("Error - bad API key")
+		errorResponse(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
 	log.Printf("Received data: %v", r.Body)
 	decoder := json.NewDecoder(r.Body)
 	event := webhookEvent{}
-	err := decoder.Decode(&event)
+	err = decoder.Decode(&event)
 
 	if err != nil {
 		log.Printf("Error decoding parameters: %s", err)

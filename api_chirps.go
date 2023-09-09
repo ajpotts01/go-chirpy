@@ -85,7 +85,7 @@ func (config *apiConfig) readChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (config *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
-	suppliedToken, err := getSuppliedToken(r)
+	suppliedToken, err := getAuthHeaderItem(r, "Bearer")
 	if err != nil {
 		errorResponse(w, http.StatusUnauthorized, "Bad authorization header")
 		return
@@ -140,7 +140,7 @@ func (config *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (config *apiConfig) deleteChirp(w http.ResponseWriter, r *http.Request) {
-	suppliedToken, err := getSuppliedToken(r)
+	suppliedToken, err := getAuthHeaderItem(r, "Bearer")
 	if err != nil {
 		errorResponse(w, http.StatusUnauthorized, "Bad authorization header")
 		return

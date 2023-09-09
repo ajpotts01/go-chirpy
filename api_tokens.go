@@ -36,7 +36,7 @@ func checkToken(suppliedToken string, expectedIssuer string) (*jwt.RegisteredCla
 // POST /api/refresh
 func (config *apiConfig) refreshToken(w http.ResponseWriter, r *http.Request) {
 	// No body, just check headers
-	suppliedToken, err := getSuppliedToken(r)
+	suppliedToken, err := getAuthHeaderItem(r, "Bearer")
 
 	if err != nil {
 		errorResponse(w, http.StatusUnauthorized, "Bad authorization header")
@@ -72,7 +72,7 @@ func (config *apiConfig) refreshToken(w http.ResponseWriter, r *http.Request) {
 
 func (config *apiConfig) revokeToken(w http.ResponseWriter, r *http.Request) {
 	// No body, just check headers
-	suppliedToken, err := getSuppliedToken(r)
+	suppliedToken, err := getAuthHeaderItem(r, "Bearer")
 
 	if err != nil {
 		errorResponse(w, http.StatusUnauthorized, "Bad authorization header")
@@ -126,13 +126,14 @@ func getJwt(issuer string, expiresAt time.Time, subject string) (string, error) 
 	return tokenStr, nil
 }
 
-func getSuppliedToken(r *http.Request) (string, error) {
+func getAuthHeaderItem(r *http.Request, tokenType string) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 
 	if authHeader == "" {
 		return "", errors.New("must supply authorization header")
 	}
 
-	suppliedToken := strings.Replace(authHeader, "Bearer ", "", 1)
-	return suppliedToken, nil
+	suppliedItem := strings.Replace(authHeader, tokenType, "", 1)
+	suppliedItem = strings.Trim(suppliedItem, " ")
+	return suppliedItem, nil
 }
