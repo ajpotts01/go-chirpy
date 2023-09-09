@@ -45,7 +45,6 @@ func profanityFilter(body string) string {
 
 func (config *apiConfig) readChirp(w http.ResponseWriter, r *http.Request) {
 	providedId := chi.URLParam(r, "id")
-
 	id, err := strconv.Atoi(providedId)
 
 	if err != nil {
@@ -100,7 +99,7 @@ func (config *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 
 	authorId, err := strconv.Atoi(claims.Subject)
 	if err != nil {
-		errorResponse(w, http.StatusInternalServerError, "Could not determined author ID")
+		errorResponse(w, http.StatusInternalServerError, "Could not determine author ID")
 		return
 	}
 
@@ -117,7 +116,6 @@ func (config *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	cleanedBody := profanityFilter(params.Body)
-
 	log.Printf("Received chirp with length of %v\n", len(params.Body))
 
 	if len(cleanedBody) > 140 {
@@ -138,5 +136,56 @@ func (config *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 		Body:     newChirp.Body,
 		AuthorId: authorId,
 	})
+	return
+}
+
+func (config *apiConfig) deleteChirp(w http.ResponseWriter, r *http.Request) {
+	suppliedToken, err := getSuppliedToken(r)
+	if err != nil {
+		errorResponse(w, http.StatusUnauthorized, "Bad authorization header")
+		return
+	}
+
+	claims, err := checkToken(suppliedToken, "chirpy-access")
+	if err != nil {
+		errorResponse(w, http.StatusUnauthorized, "Bad token")
+		return
+	}
+
+	userId, err := strconv.Atoi(claims.Subject)
+
+	if err != nil {
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	providedChirpId := chi.URLParam(r, "id")
+	chirpId, err := strconv.Atoi(providedChirpId)
+
+	if err != nil {
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	chirp, err := config.DbConn.ReadSingleChirp(chirpId)
+
+	if err != nil {
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if chirp.AuthorId != userId {
+		errorResponse(w, http.StatusForbidden, "Cannot delete a chirp you didn't post")
+		return
+	}
+
+	err = config.DbConn.DeleteSingleChirp(chirpId)
+
+	if err != nil {
+		errorResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 	return
 }
