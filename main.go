@@ -42,12 +42,19 @@ func main() {
 
 	apiRouter := chi.NewRouter()
 	apiRouter.Get(healthEndpoint, ready)
+
+	// Chirps
 	apiRouter.Get(chirpEndpoint, config.readChirp)
 	apiRouter.Get(singleChirpEndpoint, config.readChirp)
 	apiRouter.Post(chirpEndpoint, config.createChirp)
+	apiRouter.Delete(singleChirpEndpoint, config.deleteChirp)
+
+	// Users
 	apiRouter.Post(userEndpoint, config.createUser)
 	apiRouter.Get(userEndpoint, config.readUser)
 	apiRouter.Put(userEndpoint, config.updateUser)
+
+	// Auth
 	apiRouter.Post(loginEndpoint, config.authUser)
 	apiRouter.Post(refreshEndpoint, config.refreshToken)
 	apiRouter.Post(revokeEndpoint, config.revokeToken)
